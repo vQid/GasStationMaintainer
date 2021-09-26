@@ -4,7 +4,7 @@ import socket
 from threading import Thread
 import time
 from message_builder import MessageBuilder
-from incomings_pipe import SocketChannels
+from incomings_pipe import MultiCastChannel, UdpSocketChannel
 import pipe_filter
 
 import config as cfg
@@ -24,10 +24,10 @@ class Server:
             "ServerNodes": [],
             "NodeIP": [],
             "LastActivity": [],
-            "HigherPID": [],
+            "HigherPID": [], # depends on "ServerNodes" keys...
             "PRIMARY": []
         }
-        # self.discovery_uuid =
+        self._discovery_uuids_of_server = {}
 
         self.primary = False
         self.election = False
@@ -36,21 +36,26 @@ class Server:
         print(self.ProcessUUID)
         print(self.messenger.UUID)
 
-        self.amk = []
+
 
     def run_threads(self):
-        self.incoming_msgs_thread = SocketChannels()
+        self.incoming_msgs_thread = MultiCastChannel()
         self.incoming_msgs_thread.start()
+        self.incoming_mssgs_udp_socket_thread = UdpSocketChannel()
+        self.incoming_mssgs_udp_socket_thread.start()
         # initial discovery broadcast
         self._dynamic_discovery(server_start=True)
 
         while True:
             time.sleep(2)
             print(self.BOARD_OF_SERVERS)
+            #print(self._discovery_uuids_of_server)
             # try discovering if no server nodes running in 10 seconds intervals
             self._dynamic_discovery(server_start=False)
             if not self.incoming_msgs_thread.incomings_pipe.empty():
                 data_list = self.incoming_msgs_thread.incomings_pipe.get()
+                print("new frame")
+                print(data_list)
                 if (data_list[0] == "DISCOVERY" or data_list[0] == "HEARTBEAT") and \
                         data_list[1] == "SERVER" and \
                         data_list[2] != str(self.ProcessUUID) and \
@@ -59,11 +64,21 @@ class Server:
                         self._addNode(data_list)
                     else:
                         self._updateServerBoard(data_list)
-                    if data_list[0] == "DISCOVERY":
-                        # ack to DISCOVERY!
-                        self._ackDiscovery()
+                    # ack to DISCOVERY message...
+                if data_list[0] == "DISCOVERY" and \
+                        data_list[1] == "SERVER" and \
+                        data_list[2] != str(self.ProcessUUID):
+                    self._ackDiscovery(data_list[3], data_list[7])
+            if not self.incoming_mssgs_udp_socket_thread.incomings_pipe.empty():
+                data_list = self.incoming_mssgs_udp_socket_thread.incomings_pipe.get()
+                print("something from udp socket!")
+                print(data_list)
+                if data_list[0] == "DISCOVERY" and \
+                        data_list[1] == "SERVER" and \
+                        data_list[2] != str(self.ProcessUUID):
+                    self._ackDiscovery(data_list[3], data_list[7])
 
-                # self.amk.append(self.incoming_msgs_thread.incomings_pipe.get())
+
 
     # --------------------------------------------------------
     # --------------------------------------------------------
@@ -73,14 +88,27 @@ class Server:
 
     def _dynamic_discovery(self, server_start):
         if len(self.BOARD_OF_SERVERS["ServerNodes"]) == 0 and server_start == True:
+            message_uuid = self._create_DiscoveryUUID()
+            print("inside dynamic discovery! - initial message")
+            print(message_uuid)
             self.DynamicDiscovery_timestamp = time.time()
-            self.messenger.dynamic_discovery_message()
+            self.messenger.dynamic_discovery_message(message_uuid)
         self._discoveryIntervall()
 
     def _discoveryIntervall(self):
         if (float(time.time()) - float(self.DynamicDiscovery_timestamp)) > 10 and len(self.BOARD_OF_SERVERS["ServerNodes"]) == 0:
+            message_uuid = self._create_DiscoveryUUID()
+            print("inside dynamic discovery! - interval")
+            print(message_uuid)
             self.DynamicDiscovery_timestamp = time.time()
-            self.messenger.dynamic_discovery_message()
+            self.messenger.dynamic_discovery_message(message_uuid)
+
+    def _create_DiscoveryUUID(self):
+        message_uuid = uuid.uuid4()
+        print("spawned uuid!")
+        print(message_uuid)
+        self._discovery_uuids_of_server[str(message_uuid)] = False
+        return message_uuid
 
     def _addNode(self, frame_list):
         self.BOARD_OF_SERVERS["ServerNodes"].append(frame_list[2])
@@ -101,8 +129,11 @@ class Server:
         else:
             self.BOARD_OF_SERVERS["HigherPID"][index] = False
 
-    def _ackDiscovery(self):
-        pass
+    def _ackDiscovery(self, discovery_mssg_uuid, receiver):
+        print("ack check!")
+        print(receiver)
+        print(discovery_mssg_uuid)
+        self.messenger.ack_dynamic_discovery_message(discovery_mssg_uuid, receiver)
 
     # kill server from board when last activity greater then 30 seconds!
     def _killNodeFromServerBoard(self):

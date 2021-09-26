@@ -14,6 +14,7 @@ class ServerSockets:
         # -------------------
         # BROADCAST
         self.BROADCAST_PORT = cfg.config["BROADCAST_PORT"]
+        self.UDP_PORT = cfg.config["UDP_SOCKET_PORT"]
         # Bind socket to address and port
         self.broadcast_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         # Set the socket to broadcast and enable reusing addresses
@@ -30,4 +31,3 @@ class ServerSockets:
         self.multicast_socket.bind(('', self.MCAST_PORT))
         self.mreq = struct.pack("4sl", socket.inet_aton(self.MCAST_GRP), socket.INADDR_ANY)
         self.multicast_socket.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, self.mreq)
-

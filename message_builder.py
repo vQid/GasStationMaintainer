@@ -3,12 +3,10 @@ import config as cfg
 import pipe_filter as pipe
 
 group = cfg.config["MULTICAST_GROUP"]
-port = cfg.config["MCAST_PORT"]
+port_mc = cfg.config["MCAST_PORT"]
+port_udp_unicast = cfg.config["UDP_SOCKET_PORT"]
 # 2-hop restriction in network
 ttl = 2
-
-
-
 
 
 class MessageBuilder:
@@ -25,10 +23,7 @@ class MessageBuilder:
         # single shot udp
         self.udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)  # UDP
 
-
-
         self.dynamic_discovery_template = {
-
             "MESSAGE_TYPE": "DISCOVERY",
             "NODE_TYPE": "SERVER",
             "PROCESS_UUID64": str(self.UUID),
@@ -39,7 +34,6 @@ class MessageBuilder:
         }
 
         self.dynamic_discovery_ack_template = {
-
             "MESSAGE_TYPE": "ACK",
             "NODE_TYPE": "SERVER",
             "PROCESS_UUID64": str(self.UUID),
@@ -48,12 +42,21 @@ class MessageBuilder:
             "PHYSICAL_CLOCK": "",
             "STATEMENT": "I AM HERE",
         }
+
     # sock.sendto(b"hello world", (group, port))
 
     def dynamic_discovery_message(self, message_uuid):
         self.dynamic_discovery_template["MSSG_UUID64"] = str(message_uuid)
-        self.sock.sendto(str.encode(pipe.outgoing_frame_creater(frame_list=list(self.dynamic_discovery_template.values()), receiver_ip=False)), (group, port))
+        self.sock.sendto(str.encode(
+            pipe.outgoing_frame_creater(frame_list=list(self.dynamic_discovery_template.values()), receiver_ip=False)),
+                         (group, port_mc))
 
     def ack_dynamic_discovery_message(self, ack_to_mssg, receiver):
+        print(ack_to_mssg)
         self.dynamic_discovery_ack_template["MSSG_UUID64"] = ack_to_mssg
-        self.udp_sock.sendto(str.encode(pipe.outgoing_frame_creater(frame_list=list(self.dynamic_discovery_template.values()), receiver_ip=False)),(receiver, port))
+        print(str.encode(
+            pipe.outgoing_frame_creater(frame_list=list(self.dynamic_discovery_ack_template.values()),
+                                        receiver_ip=False)), (receiver, port_udp_unicast))
+        self.udp_sock.sendto(str.encode(
+            pipe.outgoing_frame_creater(frame_list=list(self.dynamic_discovery_ack_template.values()),
+                                        receiver_ip=False)), (receiver, port_udp_unicast))

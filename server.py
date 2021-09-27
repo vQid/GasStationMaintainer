@@ -13,6 +13,8 @@ import config as cfg
 class Server:
     def __init__(self):
         # for updates -> sequentiell numbering of updates over all gas stations
+        self.incoming_msgs_thread = MultiCastChannel()
+        self.incoming_mssgs_udp_socket_thread = UdpSocketChannel()
         self.clock_block_number = 0
         self.physical_time = time.time()
         self.ProcessUUID = uuid.uuid4()
@@ -39,45 +41,63 @@ class Server:
 
 
     def run_threads(self):
-        self.incoming_msgs_thread = MultiCastChannel()
+        self.incoming_msgs_thread.daemon = True
         self.incoming_msgs_thread.start()
-        self.incoming_mssgs_udp_socket_thread = UdpSocketChannel()
+        self.incoming_mssgs_udp_socket_thread.daemon = True
         self.incoming_mssgs_udp_socket_thread.start()
         # initial discovery broadcast
         self._dynamic_discovery(server_start=True)
+        try:
+            while True:
+                time.sleep(2)
+                print(self.BOARD_OF_SERVERS)
+                #print(self._discovery_uuids_of_server)
+                # try discovering if no server nodes running in 10 seconds intervals
+                self._dynamic_discovery(server_start=False)
+                if not self.incoming_msgs_thread.incomings_pipe.empty():
+                    data_list = self.incoming_msgs_thread.incomings_pipe.get()
+                    print("new frame")
+                    print(data_list)
+                    if (data_list[0] == "DISCOVERY" or data_list[0] == "HEARTBEAT") and \
+                            data_list[1] == "SERVER" and \
+                            data_list[2] != str(self.ProcessUUID) and \
+                            data_list[7] != self.MY_IP:
+                        if data_list[7] not in self.BOARD_OF_SERVERS["NodeIP"]:
+                            self._addNode(data_list)
+                        else:
+                            self._updateServerBoard(data_list)
+                        # ack to DISCOVERY message...
+                    if data_list[0] == "DISCOVERY" and \
+                            data_list[1] == "SERVER" and \
+                            data_list[2] != str(self.ProcessUUID):
+                        self._ackDiscovery(data_list[3], data_list[7])
 
-        while True:
-            time.sleep(2)
-            print(self.BOARD_OF_SERVERS)
-            #print(self._discovery_uuids_of_server)
-            # try discovering if no server nodes running in 10 seconds intervals
-            self._dynamic_discovery(server_start=False)
-            if not self.incoming_msgs_thread.incomings_pipe.empty():
-                data_list = self.incoming_msgs_thread.incomings_pipe.get()
-                print("new frame")
-                print(data_list)
-                if (data_list[0] == "DISCOVERY" or data_list[0] == "HEARTBEAT") and \
-                        data_list[1] == "SERVER" and \
-                        data_list[2] != str(self.ProcessUUID) and \
-                        data_list[7] != self.MY_IP:
-                    if data_list[7] not in self.BOARD_OF_SERVERS["NodeIP"]:
-                        self._addNode(data_list)
-                    else:
-                        self._updateServerBoard(data_list)
-                    # ack to DISCOVERY message...
-                if data_list[0] == "DISCOVERY" and \
-                        data_list[1] == "SERVER" and \
-                        data_list[2] != str(self.ProcessUUID):
-                    self._ackDiscovery(data_list[3], data_list[7])
-            if not self.incoming_mssgs_udp_socket_thread.incomings_pipe.empty():
-                data_list = self.incoming_mssgs_udp_socket_thread.incomings_pipe.get()
-                print("something from udp socket!")
-                print(data_list)
-                if data_list[0] == "DISCOVERY" and \
-                        data_list[1] == "SERVER" and \
-                        data_list[2] != str(self.ProcessUUID):
-                    self._ackDiscovery(data_list[3], data_list[7])
+                if not self.incoming_mssgs_udp_socket_thread.incomings_pipe.empty():
+                    data_list = self.incoming_mssgs_udp_socket_thread.incomings_pipe.get()
+                    print(data_list)
+                    print("something from udp socket!")
+                    print("something from udp socket!")
+                    print("something from udp socket!")
+                    print("something from udp socket!")
+                    print("something from udp socket!")
+                    print("something from udp socket!")
+                    print("something from udp socket!")
 
+                    print(data_list)
+
+                    if data_list[0] == "ACK" and \
+                            data_list[1] == "SERVER" and \
+                            data_list[2] != str(self.ProcessUUID):
+                        if data_list[7] not in self.BOARD_OF_SERVERS["NodeIP"]:
+                            self._addNode(data_list)
+                        else:
+                            self._updateServerBoard(data_list)
+        except Exception as e:
+            print(e)
+
+        finally:
+            self.incoming_msgs_thread.join()
+            self.incoming_mssgs_udp_socket_thread.join()
 
 
     # --------------------------------------------------------

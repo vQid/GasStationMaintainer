@@ -20,12 +20,9 @@ class MultiCastChannel(threading.Thread):
         print("Listening to network multicasts...")
         try:
             while True:
-                print("inside incomings pipe thread")
                 data, addr = self.mcl.recvfrom(1024)
-
                 if data:
                     self.incomings_pipe.put(pipe_filter.incoming_frame_filter(data.decode(), str(addr[0])), block=False)
-                    print("Received broadcast message:", data.decode())
         except Exception as e:
             print(e)
 
@@ -50,6 +47,6 @@ class UdpSocketChannel(threading.Thread):
                 data, addr = self.udp_sock.recvfrom(1024)
                 if data:
                     self.incomings_pipe.put(pipe_filter.incoming_frame_filter(data.decode(), str(addr[0])), block=False)
-                    print("Received broadcast message:", data.decode())
+                    print("Received Unicast message:", data.decode())
         except Exception as e:
             print(e)

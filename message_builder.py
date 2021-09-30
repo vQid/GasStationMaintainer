@@ -51,6 +51,12 @@ class MessageBuilder:
             pipe.outgoing_frame_creater(frame_list=list(self.dynamic_discovery_template.values()), receiver_ip=False)),
                          (group, port_mc))
 
+    def multicast_hearbeat(self, list_frame):
+        print("sending hearbeat...")
+        self.sock.sendto(str.encode(
+            pipe.outgoing_frame_creater(frame_list=list_frame, receiver_ip=False)),
+                         (group, port_mc))
+
     def ack_dynamic_discovery_message(self, ack_to_mssg, receiver):
         print(ack_to_mssg)
         self.dynamic_discovery_ack_template["MSSG_UUID64"] = ack_to_mssg

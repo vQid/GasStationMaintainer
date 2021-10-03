@@ -8,6 +8,7 @@ class Cons(threading.Thread):
         super(Cons, self).__init__()
         self.board = board
         self.primary = primary
+        self.primaryppid = ""
 
 
 
@@ -17,4 +18,5 @@ class Cons(threading.Thread):
             time.sleep(2.0)
             print("I AM PRIMARY: ")
             print(self.primary)
+            print(self.primaryppid)
             print(self.board)

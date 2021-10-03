@@ -28,6 +28,13 @@ class Server:
             "PRIMARY": []
         }
 
+        # KEY => GAS STATION ID
+        # VALUE => ANOTHER DICTIONARY OF (KEYS FOR SERVER LOGICAL STATE CLOCK) and (VALUE FOR TRANSMISSION BLOCK)
+        # ONLY VALID IF GAS STATION ACKED SERVER CONFIRMATION
+        self.STATION_DATA = {
+            "GAS_STATION_KEY": {"CLOCK": "BLOCK"}
+        }
+
         self.primary = False
         self.election = False
 
@@ -59,6 +66,7 @@ class Server:
 
                 if str(self.ProcessUUID) == str(self.election_thread.primaryPID):
                     self.console.primary = True
+                    self.console.primaryppid = self.election_thread.primaryPID
                 if str(self.ProcessUUID) != str(self.election_thread.primaryPID):
                     self.console.primary = False
                 self._dynamic_discovery(server_start=False)
@@ -85,7 +93,12 @@ class Server:
                             data_list[2] in self.BOARD_OF_SERVERS["ServerNodes"] and \
                             data_list[1] == "SERVER" and \
                             data_list[7] in self.BOARD_OF_SERVERS["NodeIP"]:
-                        print("GOT AN HEARTBEAT!")
+                        print("GOT A HEARTBEAT!")
+                        print(data_list)
+                        self.election_thread.incoming_mssgs.put(data_list)
+                    if data_list[0] == "VICTORY" and \
+                            data_list[2] != str(self.ProcessUUID) and \
+                            data_list[1] == "SERVER":
                         self.election_thread.incoming_mssgs.put(data_list)
 
                 # process outgoing messages from election thread
@@ -97,7 +110,7 @@ class Server:
                         self.messenger.election_mssg(data_list[0:7], data_list[7]) # unicast
                     if data_list[0] == "ACK": # to do
                         self.messenger.ack_election_mssg(data_list[0:7], data_list[7]) # unicast
-                    if data_list[0] == "COORDINATOR":
+                    if data_list[0] == "VICTORY":
                         self.messenger.coordinator_mssg(data_list[0:7]) # multicast
 
                 # udp socket thread

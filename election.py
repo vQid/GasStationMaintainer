@@ -31,15 +31,12 @@ class BullyAlgorithm(threading.Thread):
         }
 
     def run(self):
-
         time.sleep(3)  # for w8ing until server discovers other servers!
         print("starting election thread...")
         try:
             while True:
                 self._heartbeat()
-
                 #self._detectCrash()
-
                 self._monitorTimeout()
 
                 self._initateElection()
@@ -49,7 +46,6 @@ class BullyAlgorithm(threading.Thread):
                     data_list = self.incoming_mssgs.get()
                     self.handleMessages(data_list)
 
-
         except Exception as e:
             print(e)
 
@@ -58,11 +54,10 @@ class BullyAlgorithm(threading.Thread):
             print("starting an election")
             self.election_pending = True
             election_uuid = str(uuid.uuid4())
-            print("assigning uuid to my election...:")
             self.ELECTION_BOARD["electionID"] = election_uuid
-            print(self.ELECTION_BOARD["electionID"])
             if True in self.BOARD_OF_SERVERS["HigherPID"]:
                 self._sendMessageToHigherPPIDs(election_uuid)
+                self._setTimeout()
             else:
                 self._broadcastVictory()
                 self._releaseElection()
@@ -72,9 +67,6 @@ class BullyAlgorithm(threading.Thread):
     def _sendMessageToHigherPPIDs(self, election_uuid):
         for idx, val in enumerate(self.BOARD_OF_SERVERS["NodeIP"]):
             if self.BOARD_OF_SERVERS["HigherPID"][idx]:
-                print("sending to ")
-                print(val)
-
                 self.outgoing_mssgs.put(self.temps.getElectionTemp(election_uuid, val))
 
     def _detectCrash(self):
@@ -103,9 +95,12 @@ class BullyAlgorithm(threading.Thread):
             print("got an election Message from : !")
             print(data_frame)
             self.outgoing_mssgs.put(self.temps.getAckToElectionTemp(data_frame[3], data_frame[7]))
+            if data_frame[2] > str(self.PROCESS_UUID):
+                self._setTimeout()
 
         if data_frame[0] == "VICTORY":
             if data_frame[2] > str(self.PROCESS_UUID):
+                print(data_frame)
                 self.primaryPID = data_frame[2]
                 self._releaseElection()
             else:
@@ -122,12 +117,13 @@ class BullyAlgorithm(threading.Thread):
         self.ELECTION_BOARD["electionHighestPID"] = ""
         self.ELECTION_BOARD["electionID"] = ""
         self.election_pending = False
+        print("ELECTION IS OVER")
 
     def _setTimeout(self):
         self.election_timeout_timestamp = time.time()
 
     def _monitorTimeout(self):
-        if self.primaryPID == "":
+        if self.primaryPID == "" and self.election_pending == True:
             if (float(time.time() - float(self.election_timeout_timestamp)) > cfg.config["ELECTION_TIMEOUT"]) and self.ELECTION_BOARD["electionHighestPID"] != "":
                 # resend election messages...
                 self._sendMessageToHigherPPIDs(self.ELECTION_BOARD["electionID"])
@@ -148,11 +144,8 @@ class BullyAlgorithm(threading.Thread):
     def _heartbeat(self):
         if (float(time.time() - float(self.last_heartbeat_timestamp))) > float(cfg.config["HEARTBEAT_INTERVAL"]):
             # send heartbeats to lower pids...
-            # for future implementation => HEARTBEAT ONLY IF THIS SERVER IS PRIMARY!
             if len(self.BOARD_OF_SERVERS["ServerNodes"]) > 0 and self._iAmLead():
-                self.outgoing_mssgs.put(
-                    self.temps.getHeartbeatTemp()
-                )
+                self.outgoing_mssgs.put(self.temps.getHeartbeatTemp())
                 self.last_heartbeat_timestamp = time.time()
 
     def _updateLastActivity(self, frame_list):
@@ -166,7 +159,7 @@ class BullyAlgorithm(threading.Thread):
             self.BOARD_OF_SERVERS["responseAnyHigherPID"] = True
 
     def _iAmLead(self):
-        if str(self.PROCESS_UUID) == self.primaryPID:
+        if str(self.PROCESS_UUID) == self.primaryPID and self.election_pending != True:
             return True
         else:
             return False

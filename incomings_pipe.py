@@ -24,7 +24,7 @@ class MultiCastChannel(threading.Thread):
                 data, addr = self.mcl.recvfrom(1024)
                 if data:
                     data_list = pipe_filter.incoming_frame_filter(data.decode("utf-8"), str(addr[0]))
-                    if data_list[2] != self.process_id:
+                    if data_list[2] != self.process_id and data_list[7].split(".")[0] == "192":
                         self.incomings_pipe.put(data_list, block=False)
         except Exception as e:
             print(e)

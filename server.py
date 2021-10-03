@@ -1,26 +1,21 @@
-import multiprocessing
 import uuid
 import socket
-from threading import Thread
 import time
 from message_builder import MessageBuilder
 from incomings_pipe import MultiCastChannel, UdpSocketChannel
 from election import BullyAlgorithm
 from PrintBoard import Cons
-import pipe_filter
-
-import config as cfg
 
 
 class Server:
     def __init__(self):
         # for updates -> sequentiell numbering of updates over all gas stations
 
-
         # clock block number is only to iterate if there is updates!
         self.clock_block_number = 0
         self.physical_time = time.time()
         self.ProcessUUID = uuid.uuid4()
+        self.server_starttime = time.time()
         self.DynamicDiscovery_timestamp = time.time()
         self.MY_HOST = socket.gethostname()
         self.MY_IP = socket.gethostbyname(self.MY_HOST)
@@ -29,27 +24,24 @@ class Server:
             "ServerNodes": [],
             "NodeIP": [],
             "LastActivity": [],
-            "HigherPID": [], # depends on "ServerNodes" keys...
+            "HigherPID": [],  # depends on "ServerNodes" keys...
             "PRIMARY": []
         }
-
-        self.incoming_msgs_thread = MultiCastChannel()
-        self.incoming_mssgs_udp_socket_thread = UdpSocketChannel()
-        self.election_thread = BullyAlgorithm(self.BOARD_OF_SERVERS, self.ProcessUUID)
-
-
-        self.console = Cons(self.BOARD_OF_SERVERS)
-
-        self._discovery_mssg_uuids_of_server = {}
 
         self.primary = False
         self.election = False
 
+        self.incoming_msgs_thread = MultiCastChannel(process_id=str(self.ProcessUUID))
+        self.incoming_mssgs_udp_socket_thread = UdpSocketChannel()
+        self.election_thread = BullyAlgorithm(self.BOARD_OF_SERVERS, self.ProcessUUID, self.server_starttime, self.primary)
+
+        self.console = Cons(self.BOARD_OF_SERVERS, self.primary)
+
+        self._discovery_mssg_uuids_of_server = {}
+
         self.messenger = MessageBuilder(self.ProcessUUID)
         print(self.ProcessUUID)
         print(self.messenger.UUID)
-
-
 
     def run_threads(self):
         self.incoming_msgs_thread.daemon = True
@@ -64,12 +56,15 @@ class Server:
         self._dynamic_discovery(server_start=True)
         try:
             while True:
+
+                if str(self.ProcessUUID) == str(self.election_thread.primaryPID):
+                    self.console.primary = True
+                if str(self.ProcessUUID) != str(self.election_thread.primaryPID):
+                    self.console.primary = False
                 self._dynamic_discovery(server_start=False)
-                #print(self._discovery_mssg_uuids_of_server)
+                # print(self._discovery_mssg_uuids_of_server)
                 # try discovering if no server nodes running in 10 seconds intervals
-
-
-                #multicast
+                # multicast
                 if not self.incoming_msgs_thread.incomings_pipe.empty():
                     data_list = self.incoming_msgs_thread.incomings_pipe.get()
                     if data_list[0] == "DISCOVERY" and \
@@ -90,28 +85,39 @@ class Server:
                             data_list[2] in self.BOARD_OF_SERVERS["ServerNodes"] and \
                             data_list[1] == "SERVER" and \
                             data_list[7] in self.BOARD_OF_SERVERS["NodeIP"]:
-                        self.election_thread._updateLastActivity(data_list)
+                        print("GOT AN HEARTBEAT!")
+                        self.election_thread.incoming_mssgs.put(data_list)
 
+                # process outgoing messages from election thread
+                if not self.election_thread.outgoing_mssgs.empty():
+                    data_list = self.election_thread.outgoing_mssgs.get()
+                    if data_list[0] == "HEARTBEAT":
+                        self.messenger.multicast_hearbeat(data_list[0:7]) # multicast
+                    if data_list[0] == "ELECTION":
+                        self.messenger.election_mssg(data_list[0:7], data_list[7]) # unicast
+                    if data_list[0] == "ACK": # to do
+                        self.messenger.ack_election_mssg(data_list[0:7], data_list[7]) # unicast
+                    if data_list[0] == "COORDINATOR":
+                        self.messenger.coordinator_mssg(data_list[0:7]) # multicast
 
-                elif not self.election_thread.outgoing_mssgs.empty():
-                    self.messenger.multicast_hearbeat(self.election_thread.outgoing_mssgs.get())
-
-                else:
-                    pass
-
-                #udp socket thread
+                # udp socket thread
                 if not self.incoming_mssgs_udp_socket_thread.incomings_pipe.empty():
                     data_list = self.incoming_mssgs_udp_socket_thread.incomings_pipe.get()
                     if data_list[0] == "ACK" and \
                             data_list[1] == "SERVER" and \
-                            data_list[2] != str(self.ProcessUUID):
+                            data_list[2] != str(self.ProcessUUID) and \
+                            data_list[3] != self.election_thread.ELECTION_BOARD["electionID"]:
                         if data_list[7] not in self.BOARD_OF_SERVERS["NodeIP"]:
+
                             self._addNode(data_list)
                             self._discovery_mssg_uuids_of_server[data_list[7]] = True
                         else:
                             self._updateServerBoard(data_list)
-                else:
-                    pass
+                    if data_list[0] == "ACK" and data_list[3] == self.election_thread.ELECTION_BOARD["electionID"]:
+                        self.election_thread.incoming_mssgs.put(data_list)
+
+                    if data_list[0] == "ELECTION":
+                        self.election_thread.incoming_mssgs.put(data_list)
 
 
         except Exception as e:
@@ -121,8 +127,7 @@ class Server:
             self.incoming_msgs_thread.join()
             self.incoming_mssgs_udp_socket_thread.join()
             self.election_thread.join()
-
-
+            self.console.join()
 
     # --------------------------------------------------------
     # --------------------------------------------------------
@@ -138,10 +143,18 @@ class Server:
         self._discoveryIntervall()
 
     def _discoveryIntervall(self):
-        if (float(time.time()) - float(self.DynamicDiscovery_timestamp)) > 10 and len(self.BOARD_OF_SERVERS["ServerNodes"]) == 0:
+        # for @starttime
+        if (float(time.time()) - float(self.DynamicDiscovery_timestamp)) > 10 and len(
+                self.BOARD_OF_SERVERS["ServerNodes"]) == 0:
             message_uuid = self._create_DiscoveryUUID()
             self.DynamicDiscovery_timestamp = time.time()
             self.messenger.dynamic_discovery_message(message_uuid)
+        # for @futher discoveries
+        if (float(time.time()) - float(self.DynamicDiscovery_timestamp)) > 30 and len(self.BOARD_OF_SERVERS["ServerNodes"]) > 0:
+            message_uuid = self._create_DiscoveryUUID()
+            self.DynamicDiscovery_timestamp = time.time()
+            self.messenger.dynamic_discovery_message(message_uuid)
+
 
     def _create_DiscoveryUUID(self):
         message_uuid = uuid.uuid4()
@@ -174,12 +187,12 @@ class Server:
     def _killNodeFromServerBoard(self):
         pass
 
+    # --------------------------------------------------------
+    # --------------------------------------------------------
+    # --------------------------------------------------------
+    # --------------------------------------------------------
+    # --------------------------------------------------------
 
-    # --------------------------------------------------------
-    # --------------------------------------------------------
-    # --------------------------------------------------------
-    # --------------------------------------------------------
-    # --------------------------------------------------------
 
 if __name__ == "__main__":
     server = Server()

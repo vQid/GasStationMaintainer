@@ -8,9 +8,6 @@ def incoming_frame_filter(frame, sender_ip):
     framepositions.append(sender_ip)
     return framepositions
 
-def outgoing_frame_creater(frame_list, receiver_ip):
+def outgoing_frame_creater(frame_list):
     frame = ";".join(frame_list)
-    if receiver_ip:
-        return [frame, receiver_ip]
-    elif not receiver_ip:
-        return frame
+    return frame

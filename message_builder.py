@@ -43,26 +43,30 @@ class MessageBuilder:
             "STATEMENT": "I AM HERE",
         }
 
-    # sock.sendto(b"hello world", (group, port))
-
     def dynamic_discovery_message(self, message_uuid):
         self.dynamic_discovery_template["MSSG_UUID64"] = str(message_uuid)
         self.sock.sendto(str.encode(
-            pipe.outgoing_frame_creater(frame_list=list(self.dynamic_discovery_template.values()), receiver_ip=False)),
-                         (group, port_mc))
+            pipe.outgoing_frame_creater(list(self.dynamic_discovery_template.values()))),
+            (group, port_mc))
 
     def multicast_hearbeat(self, list_frame):
-        print("sending hearbeat...")
         self.sock.sendto(str.encode(
-            pipe.outgoing_frame_creater(frame_list=list_frame, receiver_ip=False)),
-                         (group, port_mc))
+            pipe.outgoing_frame_creater(list_frame)), (group, port_mc))
 
     def ack_dynamic_discovery_message(self, ack_to_mssg, receiver):
-        print(ack_to_mssg)
         self.dynamic_discovery_ack_template["MSSG_UUID64"] = ack_to_mssg
-        print(str.encode(
-            pipe.outgoing_frame_creater(frame_list=list(self.dynamic_discovery_ack_template.values()),
-                                        receiver_ip=False)), (receiver, port_udp_unicast))
         self.udp_sock.sendto(str.encode(
-            pipe.outgoing_frame_creater(frame_list=list(self.dynamic_discovery_ack_template.values()),
-                                        receiver_ip=False)), (receiver, port_udp_unicast))
+            pipe.outgoing_frame_creater(list(self.dynamic_discovery_ack_template.values()), )),
+            (receiver, port_udp_unicast))
+
+    def election_mssg(self, frame_list, receiver):  # unicast
+        self.udp_sock.sendto(str.encode(
+            pipe.outgoing_frame_creater(frame_list)), (receiver, port_udp_unicast))
+
+    def ack_election_mssg(self, frame_list, receiver):  # unicast
+        self.udp_sock.sendto(str.encode(
+            pipe.outgoing_frame_creater(frame_list)), (receiver, port_udp_unicast))
+
+    def coordinator_mssg(self, frame_list):  # multicast
+        self.sock.sendto(str.encode(
+            pipe.outgoing_frame_creater(frame_list)), (group, port_mc))

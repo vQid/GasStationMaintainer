@@ -8,4 +8,5 @@ config = {
 
     "UDP_SOCKET_PORT": 9500,
     "HEARTBEAT_INTERVAL": 2.0,
+    "ELECTION_TIMEOUT": 5.0,
 }

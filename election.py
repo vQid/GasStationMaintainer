@@ -26,7 +26,7 @@ class BullyAlgorithm(threading.Thread):
 
         self.election_timeout_timestamp = time.time()
         self.ELECTION_BOARD = {
-            "electionHighestPID": "",
+            "electionHighestPID": str(self.PROCESS_UUID),
             "electionID": "",
         }
 
@@ -36,7 +36,7 @@ class BullyAlgorithm(threading.Thread):
         try:
             while True:
                 self._heartbeat()
-                #self._detectCrash()
+                # self._detectCrash()
                 self._monitorTimeout()
 
                 self._initateElection()
@@ -62,8 +62,6 @@ class BullyAlgorithm(threading.Thread):
                 self._broadcastVictory()
                 self._releaseElection()
 
-
-
     def _sendMessageToHigherPPIDs(self, election_uuid):
         for idx, val in enumerate(self.BOARD_OF_SERVERS["NodeIP"]):
             if self.BOARD_OF_SERVERS["HigherPID"][idx]:
@@ -71,23 +69,23 @@ class BullyAlgorithm(threading.Thread):
 
     def _detectCrash(self):
         if (float(time.time() - float(self.BOARD_OF_SERVERS["LastActivity"][
-                                          self.BOARD_OF_SERVERS["ServerNodes"].index(self.primaryPID)]))) > 5 and self.primaryPID != "":
+                                          self.BOARD_OF_SERVERS["ServerNodes"].index(
+                                              self.primaryPID)]))) > 5 and self.primaryPID != "":
             print("PRIMARY CRASHED!")
             index = self.BOARD_OF_SERVERS["ServerNodes"].index(self.primaryPID)
             del self.BOARD_OF_SERVERS["ServerNodes"][index]
             del self.BOARD_OF_SERVERS["NodeIP"][index]
             del self.BOARD_OF_SERVERS["LastActivity"][index]
             del self.BOARD_OF_SERVERS["HigherPID"][index]
-            del self.BOARD_OF_SERVERS["PRIMARY"][index]
             self._initateElection()
 
     def handleMessages(self, data_frame):
         if data_frame[0] == "HEARTBEAT":
             self._updateLastActivity(data_frame)
         if data_frame[0] == "ACK":
-            if data_frame[2] > self.BOARD_OF_SERVERS["electionHighestPID"]:
+            if data_frame[2] > str(self.ELECTION_BOARD["electionHighestPID"]):
                 print("processing ack of my election")
-                self.BOARD_OF_SERVERS["electionHighestPID"] = data_frame[2]
+                self.ELECTION_BOARD["electionHighestPID"] = data_frame[2]
                 self._updateLastActivity(data_frame)
                 self._setTimeout()
 
@@ -100,6 +98,12 @@ class BullyAlgorithm(threading.Thread):
 
         if data_frame[0] == "VICTORY":
             if data_frame[2] > str(self.PROCESS_UUID):
+                print("GOT AN VICTORY MESSAGE!!!")
+                print("GOT AN VICTORY MESSAGE!!!")
+                print("GOT AN VICTORY MESSAGE!!!")
+                print("GOT AN VICTORY MESSAGE!!!")
+                print("GOT AN VICTORY MESSAGE!!!")
+                print("GOT AN VICTORY MESSAGE!!!")
                 print(data_frame)
                 self.primaryPID = data_frame[2]
                 self._releaseElection()
@@ -114,7 +118,7 @@ class BullyAlgorithm(threading.Thread):
             print("I AM PRIMARY!")
 
     def _releaseElection(self):
-        self.ELECTION_BOARD["electionHighestPID"] = ""
+        self.ELECTION_BOARD["electionHighestPID"] = str(self.PROCESS_UUID)
         self.ELECTION_BOARD["electionID"] = ""
         self.election_pending = False
         print("ELECTION IS OVER")
@@ -124,9 +128,12 @@ class BullyAlgorithm(threading.Thread):
 
     def _monitorTimeout(self):
         if self.primaryPID == "" and self.election_pending == True:
-            if (float(time.time() - float(self.election_timeout_timestamp)) > cfg.config["ELECTION_TIMEOUT"]) and self.ELECTION_BOARD["electionHighestPID"] != "":
+            if (float(time.time() - float(self.election_timeout_timestamp)) > cfg.config["ELECTION_TIMEOUT"]) and \
+                    self.ELECTION_BOARD["electionHighestPID"] != "":
                 # resend election messages...
                 self._sendMessageToHigherPPIDs(self.ELECTION_BOARD["electionID"])
+            else:
+                self._broadcastVictory()
 
     def _refreshBoardOfServers(self):
         # if higher PID and not responding then delete!
@@ -138,8 +145,6 @@ class BullyAlgorithm(threading.Thread):
                 del self.BOARD_OF_SERVERS["NodeIP"][idx]
                 del self.BOARD_OF_SERVERS["LastActivity"][idx]
                 del self.BOARD_OF_SERVERS["HigherPID"][idx]
-                del self.BOARD_OF_SERVERS["PRIMARY"][idx]
-
 
     def _heartbeat(self):
         if (float(time.time() - float(self.last_heartbeat_timestamp))) > float(cfg.config["HEARTBEAT_INTERVAL"]):
@@ -149,14 +154,14 @@ class BullyAlgorithm(threading.Thread):
                 self.last_heartbeat_timestamp = time.time()
 
     def _updateLastActivity(self, frame_list):
-        if frame_list[2] in self.BOARD_OF_SERVERS["ServerNodes"]:
+        print("inside heartbeat function")
+        if frame_list[2] in str(self.BOARD_OF_SERVERS["ServerNodes"]):
             index = self.BOARD_OF_SERVERS["ServerNodes"].index(frame_list[2])
             self.BOARD_OF_SERVERS["LastActivity"][index] = float(time.time())
 
     def updateElectionBoard(self, data_list):
-        if data_list[2] > self.BOARD_OF_SERVERS["electionHighestPID"]:
-            self.BOARD_OF_SERVERS["electionHighestPID"] = data_list[2]
-            self.BOARD_OF_SERVERS["responseAnyHigherPID"] = True
+        if data_list[2] > self.ELECTION_BOARD["electionHighestPID"]:
+            self.ELECTION_BOARD["electionHighestPID"] = data_list[2]
 
     def _iAmLead(self):
         if str(self.PROCESS_UUID) == self.primaryPID and self.election_pending != True:

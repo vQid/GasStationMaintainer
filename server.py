@@ -25,7 +25,6 @@ class Server:
             "NodeIP": [],
             "LastActivity": [],
             "HigherPID": [],  # depends on "ServerNodes" keys...
-            "PRIMARY": []
         }
 
         # KEY => GAS STATION ID
@@ -62,13 +61,10 @@ class Server:
         # initial discovery broadcast
         self._dynamic_discovery(server_start=True)
         try:
-            while True:
 
-                if str(self.ProcessUUID) == str(self.election_thread.primaryPID):
-                    self.console.primary = True
-                    self.console.primaryppid = self.election_thread.primaryPID
-                if str(self.ProcessUUID) != str(self.election_thread.primaryPID):
-                    self.console.primary = False
+            while True:
+                self._updateLead()
+
                 self._dynamic_discovery(server_start=False)
                 # print(self._discovery_mssg_uuids_of_server)
                 # try discovering if no server nodes running in 10 seconds intervals
@@ -178,7 +174,7 @@ class Server:
         self.BOARD_OF_SERVERS["ServerNodes"].append(frame_list[2])
         self.BOARD_OF_SERVERS["NodeIP"].append(frame_list[7])
         self.BOARD_OF_SERVERS["LastActivity"].append(float(time.time()))
-        self.BOARD_OF_SERVERS["PRIMARY"].append(False)
+
         if str(self.ProcessUUID) < str(frame_list[2]):
             self.BOARD_OF_SERVERS["HigherPID"].append(True)
         else:
@@ -195,6 +191,14 @@ class Server:
 
     def _ackDiscovery(self, discovery_mssg_uuid, receiver):
         self.messenger.ack_dynamic_discovery_message(discovery_mssg_uuid, receiver)
+
+    def _updateLead(self):
+        if str(self.ProcessUUID) == str(self.election_thread.primaryPID):
+            self.console.primary = True
+            self.console.primaryppid = self.election_thread.primaryPID
+        if str(self.ProcessUUID) != str(self.election_thread.primaryPID):
+            self.console.primary = False
+        #self.BOARD_OF_SERVERS = self.election_thread.BOARD_OF_SERVERS
 
     # kill server from board when last activity greater then 30 seconds!
     def _killNodeFromServerBoard(self):

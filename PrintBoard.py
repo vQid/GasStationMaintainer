@@ -9,6 +9,7 @@ class Cons(threading.Thread):
         self.board = board
         self.primary = primary
         self.primaryppid = ""
+        self.election_pending = False
 
 
 
@@ -18,5 +19,8 @@ class Cons(threading.Thread):
             time.sleep(2.0)
             print("I AM PRIMARY: ")
             print(self.primary)
-            print(self.primaryppid)
+            print("The Primary PID is: " + self.primaryppid)
             print(self.board)
+            if self.election_pending:
+                print("election is pending")
+

@@ -50,13 +50,13 @@ class Server:
         print(self.messenger.UUID)
 
     def run_threads(self):
-        self.incoming_msgs_thread.daemon = True
+        #self.incoming_msgs_thread.daemon = True
         self.incoming_msgs_thread.start()
-        self.incoming_mssgs_udp_socket_thread.daemon = True
+        #self.incoming_mssgs_udp_socket_thread.daemon = True
         self.incoming_mssgs_udp_socket_thread.start()
-        self.election_thread.daemon = True
+        #self.election_thread.daemon = True
         self.election_thread.start()
-        self.console.daemon = True
+        #self.console.daemon = True
         self.console.start()
         # initial discovery broadcast
         self._dynamic_discovery(server_start=True)
@@ -64,6 +64,8 @@ class Server:
 
             while True:
                 self._updateLead()
+                self.console.primaryppid = self.election_thread.primaryPID
+                self.console.election_pending = self.election_thread.election_pending
 
                 self._dynamic_discovery(server_start=False)
                 # print(self._discovery_mssg_uuids_of_server)
@@ -95,6 +97,7 @@ class Server:
                     if data_list[0] == "VICTORY" and \
                             data_list[2] != str(self.ProcessUUID) and \
                             data_list[1] == "SERVER":
+                        print("GOT AN VICTORY MESSAGE o.O!")
                         self.election_thread.incoming_mssgs.put(data_list)
 
                 # process outgoing messages from election thread

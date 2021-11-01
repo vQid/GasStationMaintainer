@@ -5,33 +5,25 @@ from message_builder import MessageBuilder
 from incomings_pipe import MultiCastChannel, UdpSocketChannel
 from election import BullyAlgorithm
 from PrintBoard import Cons
+from persistence import PersistenceMessaging
 
 
 class Server:
     def __init__(self):
-        # for updates -> sequentiell numbering of updates over all gas stations
+        # for updates -> sequentially numbering of updates over all gas stations
 
-        # clock block number is only to iterate if there is updates!
-        self.clock_block_number = 0
         self.physical_time = time.time()
         self.ProcessUUID = uuid.uuid4()
         self.server_starttime = time.time()
         self.DynamicDiscovery_timestamp = time.time()
         self.MY_HOST = socket.gethostname()
         self.MY_IP = socket.gethostbyname(self.MY_HOST)
-        self.updates = {}
+
         self.BOARD_OF_SERVERS = {
             "ServerNodes": [],
             "NodeIP": [],
             "LastActivity": [],
-            "HigherPID": [],  # depends on "ServerNodes" keys...
-        }
-
-        # KEY => GAS STATION ID
-        # VALUE => ANOTHER DICTIONARY OF (KEYS FOR SERVER LOGICAL STATE CLOCK) and (VALUE FOR TRANSMISSION BLOCK)
-        # ONLY VALID IF GAS STATION ACKED SERVER CONFIRMATION
-        self.STATION_DATA = {
-            "GAS_STATION_KEY": {"CLOCK": "BLOCK"}
+            "HigherPID": [],  # depends on "ServerNodes" PIDs(uuid)...
         }
 
         self.primary = False
@@ -40,8 +32,9 @@ class Server:
         self.incoming_msgs_thread = MultiCastChannel(process_id=str(self.ProcessUUID))
         self.incoming_mssgs_udp_socket_thread = UdpSocketChannel()
         self.election_thread = BullyAlgorithm(self.BOARD_OF_SERVERS, self.ProcessUUID, self.server_starttime, self.primary)
+        self.persistence_thread = PersistenceMessaging("TEST", self.BOARD_OF_SERVERS, self.ProcessUUID)
 
-        self.console = Cons(self.BOARD_OF_SERVERS, self.primary)
+        self.console = Cons(self.BOARD_OF_SERVERS, self.primary, self.persistence_thread.state_clock_relation)
 
         self._discovery_mssg_uuids_of_server = {}
 
@@ -56,8 +49,11 @@ class Server:
         self.incoming_mssgs_udp_socket_thread.start()
         #self.election_thread.daemon = True
         self.election_thread.start()
-        #self.console.daemon = True
+        #self.persistence_thread.daemon = True
+        self.persistence_thread.start()
+        # self.console.daemon = True
         self.console.start()
+
         # initial discovery broadcast
         self._dynamic_discovery(server_start=True)
         try:
@@ -73,6 +69,11 @@ class Server:
                 # multicast
                 if not self.incoming_msgs_thread.incomings_pipe.empty():
                     data_list = self.incoming_msgs_thread.incomings_pipe.get()
+
+                    if data_list[0] == "DISCOVERY" and data_list[1] == "CLIENT" and self.election_thread.iAmLead():
+                        print("GOT A CLIENT DISCOVERY REQUEST!")
+                        print(data_list)
+                        self._ackClientDiscovery(data_list[3], data_list[7])
                     if data_list[0] == "DISCOVERY" and \
                             data_list[1] == "SERVER" and \
                             data_list[2] != str(self.ProcessUUID) and \
@@ -99,6 +100,13 @@ class Server:
                             data_list[1] == "SERVER":
                         print("GOT AN VICTORY MESSAGE o.O!")
                         self.election_thread.incoming_mssgs.put(data_list)
+                    if data_list[0] == "REPLICATION" and data_list[2] != str(self.ProcessUUID):
+                        print("GOT A REPLICATION MESSAGE FROM SOMEONE!!!!")
+                        print("GOT A REPLICATION MESSAGE FROM SOMEONE!!!!")
+                        print("GOT A REPLICATION MESSAGE FROM SOMEONE!!!!")
+                        print("GOT A REPLICATION MESSAGE FROM SOMEONE!!!!")
+                        print("GOT A REPLICATION MESSAGE FROM SOMEONE!!!!")
+                        self.persistence_thread.incomings_pipe.put(data_list)
 
                 # process outgoing messages from election thread
                 if not self.election_thread.outgoing_mssgs.empty():
@@ -130,6 +138,22 @@ class Server:
 
                     if data_list[0] == "ELECTION":
                         self.election_thread.incoming_mssgs.put(data_list)
+
+                    if data_list[0] == "UPDATE" and data_list[3] not in self.persistence_thread.clock_mssguuid_relation:
+                        print("WE GOT AN UPDATE REQUEST FROM A GAS STATION!!!!")
+                        print("WE GOT AN UPDATE REQUEST FROM A GAS STATION!!!!")
+                        print("WE GOT AN UPDATE REQUEST FROM A GAS STATION!!!!")
+                        print("WE GOT AN UPDATE REQUEST FROM A GAS STATION!!!!")
+                        print(data_list)
+                        if self.election_thread.iAmLead():
+                            print("ACKING TO AND PUTING INTO QUEUE!")
+                            self.messenger.client_transmission_ack_message(data_list[3], data_list[7])
+                            self.persistence_thread.incomings_pipe.put(data_list)
+
+
+
+
+
 
 
         except Exception as e:
@@ -194,6 +218,9 @@ class Server:
 
     def _ackDiscovery(self, discovery_mssg_uuid, receiver):
         self.messenger.ack_dynamic_discovery_message(discovery_mssg_uuid, receiver)
+
+    def _ackClientDiscovery(self, discovery_mssg_uuid, receiver):
+        self.messenger.ack_client_dynamic_discovery_message(discovery_mssg_uuid, receiver)
 
     def _updateLead(self):
         if str(self.ProcessUUID) == str(self.election_thread.primaryPID):

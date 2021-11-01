@@ -1,4 +1,6 @@
 import socket
+
+import config
 import config as cfg
 import pipe_filter as pipe
 
@@ -43,6 +45,26 @@ class MessageBuilder:
             "STATEMENT": "I AM HERE",
         }
 
+        self.dynamic_client_discovery_ack_template = {
+            "MESSAGE_TYPE": "ACK",
+            "NODE_TYPE": "SERVER",
+            "PROCESS_UUID64": "",
+            "MSSG_UUID64": "",
+            "LOGICAL_CLOCK": "",
+            "PHYSICAL_CLOCK": "",
+            "STATEMENT": "I AM THE PRIMARY SERVER",
+        }
+
+        self.client_transmission_ack_template = {
+            "MESSAGE_TYPE": "ACK",
+            "NODE_TYPE": "SERVER",
+            "PROCESS_UUID64": "",
+            "MSSG_UUID64": "",
+            "LOGICAL_CLOCK": "",
+            "PHYSICAL_CLOCK": "",
+            "STATEMENT": "MESSAGE CONFIRMATION",
+        }
+
     def dynamic_discovery_message(self, message_uuid):
         self.dynamic_discovery_template["MSSG_UUID64"] = str(message_uuid)
         self.sock.sendto(str.encode(
@@ -58,6 +80,18 @@ class MessageBuilder:
         self.udp_sock.sendto(str.encode(
             pipe.outgoing_frame_creater(list(self.dynamic_discovery_ack_template.values()), )),
             (receiver, port_udp_unicast))
+
+    def ack_client_dynamic_discovery_message(self, ack_to_mssg, receiver):
+        self.dynamic_client_discovery_ack_template["MSSG_UUID64"] = ack_to_mssg
+        self.udp_sock.sendto(str.encode(
+            pipe.outgoing_frame_creater(list(self.dynamic_client_discovery_ack_template.values()), )),
+            (receiver, config.config["STATION_CLIENT_PORT"]))
+
+    def client_transmission_ack_message(self, ack_to_mssg, receiver):
+        self.client_transmission_ack_template["MSSG_UUID64"] = ack_to_mssg
+        self.udp_sock.sendto(str.encode(
+            pipe.outgoing_frame_creater(list(self.client_transmission_ack_template.values()), )),
+            (receiver, config.config["STATION_CLIENT_PORT"]))
 
     def election_mssg(self, frame_list, receiver):  # unicast
         self.udp_sock.sendto(str.encode(

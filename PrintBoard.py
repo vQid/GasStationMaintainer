@@ -4,12 +4,14 @@ import time
 
 class Cons(threading.Thread):
 
-    def __init__(self, board, primary):
+    def __init__(self, board, primary, datasets):
         super(Cons, self).__init__()
         self.board = board
         self.primary = primary
         self.primaryppid = ""
         self.election_pending = False
+
+        self.dataset = datasets
 
 
 
@@ -21,6 +23,7 @@ class Cons(threading.Thread):
             print(self.primary)
             print("The Primary PID is: " + self.primaryppid)
             print(self.board)
+            print(self.dataset)
             if self.election_pending:
                 print("election is pending")
 

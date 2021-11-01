@@ -180,3 +180,9 @@ class BullyAlgorithm(threading.Thread):
             return True
         else:
             return False
+
+    def iAmLead(self):
+        if str(self.PROCESS_UUID) == self.primaryPID and self.election_pending != True:
+            return True
+        else:
+            return False

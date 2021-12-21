@@ -1,4 +1,5 @@
 import threading
+import uuid
 from queue import PriorityQueue
 import socket
 import pipe_filter
@@ -115,7 +116,7 @@ class PersistenceMessaging(threading.Thread):
                 "MESSAGE_TYPE": "REPLICATION",
                 "NODE_TYPE": "SERVER",
                 "PROCESS_UUID64": str(self.ProcessUUID),
-                "MSSG_UUID64": message_uuid,
+                "MSSG_UUID64": str(uuid.uuid4()),
                 "LOGICAL_CLOCK": logical_clock,
                 "PHYSICAL_CLOCK": physical_clock,
                 "STATEMENT": oral_message_string
@@ -154,7 +155,7 @@ class PersistenceMessaging(threading.Thread):
             "MESSAGE_TYPE": "REPLICATION",
             "NODE_TYPE": "SERVER",
             "PROCESS_UUID64": str(self.ProcessUUID),
-            "MSSG_UUID64": data_list[3],
+            "MSSG_UUID64": str(uuid.uuid4()),
             "LOGICAL_CLOCK": st_cl,
             "PHYSICAL_CLOCK": data_list[5],
             "STATEMENT": oral_message_string

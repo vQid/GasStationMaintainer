@@ -19,6 +19,8 @@ class Server:
         self.MY_HOST = socket.gethostname()
         self.MY_IP = socket.gethostbyname(self.MY_HOST)
 
+        self.message_type = dict()
+
         self.BOARD_OF_SERVERS = {
             "ServerNodes": [],
             "NodeIP": [],
@@ -33,7 +35,6 @@ class Server:
         self.incoming_mssgs_udp_socket_thread = UdpSocketChannel()
         self.election_thread = BullyAlgorithm(self.BOARD_OF_SERVERS, self.ProcessUUID, self.server_starttime, self.primary)
         self.persistence_thread = PersistenceMessaging("TEST", self.BOARD_OF_SERVERS, self.ProcessUUID)
-
         self.console = Cons(self.BOARD_OF_SERVERS, self.primary, self.persistence_thread.state_clock_relation)
 
         self._discovery_mssg_uuids_of_server = {}
@@ -42,6 +43,11 @@ class Server:
         print(self.ProcessUUID)
         print(self.messenger.UUID)
 
+        # --------------------------------------------------------------------------------
+        # --------------------------------------------------------------------------------
+        # --------------------------------------------------------------------------------
+        # --------------------------------------------------------------------------------
+        # --------------------------------------------------------------------------------
     def run_threads(self):
         #self.incoming_msgs_thread.daemon = True
         self.incoming_msgs_thread.start()
@@ -68,93 +74,15 @@ class Server:
                 # try discovering if no server nodes running in 10 seconds intervals
                 # multicast
                 if not self.incoming_msgs_thread.incomings_pipe.empty():
-                    data_list = self.incoming_msgs_thread.incomings_pipe.get()
-
-                    if data_list[0] == "DISCOVERY" and data_list[1] == "CLIENT" and self.election_thread.iAmLead():
-                        print("GOT A CLIENT DISCOVERY REQUEST!")
-                        print(data_list)
-                        self._ackClientDiscovery(data_list[3], data_list[7])
-                    if data_list[0] == "DISCOVERY" and \
-                            data_list[1] == "SERVER" and \
-                            data_list[2] != str(self.ProcessUUID) and \
-                            data_list[7] != self.MY_IP:
-                        if data_list[7] not in self.BOARD_OF_SERVERS["NodeIP"]:
-                            self._addNode(data_list)
-                        else:
-                            self._updateServerBoard(data_list)
-                        # ack to DISCOVERY message...
-                    if data_list[0] == "DISCOVERY" and \
-                            data_list[1] == "SERVER" and \
-                            data_list[2] != str(self.ProcessUUID):
-                        self._ackDiscovery(data_list[3], data_list[7])
-                    if data_list[0] == "HEARTBEAT" and \
-                            data_list[2] != str(self.ProcessUUID) and \
-                            data_list[2] in self.BOARD_OF_SERVERS["ServerNodes"] and \
-                            data_list[1] == "SERVER" and \
-                            data_list[7] in self.BOARD_OF_SERVERS["NodeIP"]:
-                        print("GOT A HEARTBEAT!")
-                        print(data_list)
-                        self.election_thread.incoming_mssgs.put(data_list)
-                    if data_list[0] == "VICTORY" and \
-                            data_list[2] != str(self.ProcessUUID) and \
-                            data_list[1] == "SERVER":
-                        print("GOT AN VICTORY MESSAGE o.O!")
-                        self.election_thread.incoming_mssgs.put(data_list)
-                    if data_list[0] == "REPLICATION" and data_list[2] != str(self.ProcessUUID):
-                        print("GOT A REPLICATION MESSAGE FROM SOMEONE!!!!")
-                        print("GOT A REPLICATION MESSAGE FROM SOMEONE!!!!")
-                        print("GOT A REPLICATION MESSAGE FROM SOMEONE!!!!")
-                        print("GOT A REPLICATION MESSAGE FROM SOMEONE!!!!")
-                        print("GOT A REPLICATION MESSAGE FROM SOMEONE!!!!")
-                        self.persistence_thread.incomings_pipe.put(data_list)
+                    self.handle_incoming_multicasts()
 
                 # process outgoing messages from election thread
                 if not self.election_thread.outgoing_mssgs.empty():
-                    data_list = self.election_thread.outgoing_mssgs.get()
-                    if data_list[0] == "HEARTBEAT":
-                        self.messenger.multicast_hearbeat(data_list[0:7]) # multicast
-                    if data_list[0] == "ELECTION":
-                        self.messenger.election_mssg(data_list[0:7], data_list[7]) # unicast
-                    if data_list[0] == "ACK": # to do
-                        self.messenger.ack_election_mssg(data_list[0:7], data_list[7]) # unicast
-                    if data_list[0] == "VICTORY":
-                        self.messenger.coordinator_mssg(data_list[0:7]) # multicast
+                    self.create_outgoing_frame()
 
                 # udp socket thread
                 if not self.incoming_mssgs_udp_socket_thread.incomings_pipe.empty():
-                    data_list = self.incoming_mssgs_udp_socket_thread.incomings_pipe.get()
-                    if data_list[0] == "ACK" and \
-                            data_list[1] == "SERVER" and \
-                            data_list[2] != str(self.ProcessUUID) and \
-                            data_list[3] != self.election_thread.ELECTION_BOARD["electionID"]:
-                        if data_list[7] not in self.BOARD_OF_SERVERS["NodeIP"]:
-
-                            self._addNode(data_list)
-                            self._discovery_mssg_uuids_of_server[data_list[7]] = True
-                        else:
-                            self._updateServerBoard(data_list)
-                    if data_list[0] == "ACK" and data_list[3] == self.election_thread.ELECTION_BOARD["electionID"]:
-                        self.election_thread.incoming_mssgs.put(data_list)
-
-                    if data_list[0] == "ELECTION":
-                        self.election_thread.incoming_mssgs.put(data_list)
-
-                    if data_list[0] == "UPDATE" and data_list[3] not in self.persistence_thread.clock_mssguuid_relation:
-                        print("WE GOT AN UPDATE REQUEST FROM A GAS STATION!!!!")
-                        print("WE GOT AN UPDATE REQUEST FROM A GAS STATION!!!!")
-                        print("WE GOT AN UPDATE REQUEST FROM A GAS STATION!!!!")
-                        print("WE GOT AN UPDATE REQUEST FROM A GAS STATION!!!!")
-                        print(data_list)
-                        if self.election_thread.iAmLead():
-                            print("ACKING TO AND PUTING INTO QUEUE!")
-                            self.messenger.client_transmission_ack_message(data_list[3], data_list[7])
-                            self.persistence_thread.incomings_pipe.put(data_list)
-
-
-
-
-
-
+                    self.handle_incoming_udp_socket_channel_frames()
 
         except Exception as e:
             print(e)
@@ -170,6 +98,100 @@ class Server:
     # --------------------------------------------------------
     # --------------------------------------------------------
     # --------------------------------------------------------
+
+    def _registerNewMessage(self, frame):
+        self.message_type[frame[3]] = frame[0]
+
+    def _messageAlreadyRegistred(self, mssg_uuid):
+        if mssg_uuid in self.message_type:
+            return True
+        else:
+            return False
+
+    def handle_incoming_multicasts(self):
+        data_list = self.incoming_msgs_thread.incomings_pipe.get()
+        if data_list[0] == "DISCOVERY" and data_list[1] == "CLIENT" and self.election_thread.iAmLead():
+            print("GOT A CLIENT DISCOVERY REQUEST!")
+            print(data_list)
+            self._ackClientDiscovery(data_list[3], data_list[7])
+        if data_list[0] == "DISCOVERY" and \
+                data_list[1] == "SERVER" and \
+                data_list[2] != str(self.ProcessUUID) and \
+                data_list[7] != self.MY_IP:
+            if data_list[7] not in self.BOARD_OF_SERVERS["NodeIP"]:
+                self._addNode(data_list)
+            else:
+                self._updateServerBoard(data_list)
+            # ack to DISCOVERY message...
+        if data_list[0] == "DISCOVERY" and \
+                data_list[1] == "SERVER" and \
+                data_list[2] != str(self.ProcessUUID):
+            self._ackDiscovery(data_list[3], data_list[7])
+        if data_list[0] == "HEARTBEAT" and \
+                data_list[2] != str(self.ProcessUUID) and \
+                data_list[2] in self.BOARD_OF_SERVERS["ServerNodes"] and \
+                data_list[1] == "SERVER" and \
+                data_list[7] in self.BOARD_OF_SERVERS["NodeIP"]:
+            print("GOT A HEARTBEAT!")
+            print(data_list)
+            self.election_thread.incoming_mssgs.put(data_list)
+        if data_list[0] == "VICTORY" and \
+                data_list[2] != str(self.ProcessUUID) and \
+                data_list[1] == "SERVER":
+            print("GOT AN VICTORY MESSAGE o.O!")
+            self.election_thread.incoming_mssgs.put(data_list)
+        if data_list[0] == "REPLICATION" and data_list[2] != str(self.ProcessUUID) and \
+                not self._messageAlreadyRegistred(data_list[3]):
+            print("GOT A REPLICATION MESSAGE FROM SOMEONE!!!!")
+            print("GOT A REPLICATION MESSAGE FROM SOMEONE!!!!")
+            print("GOT A REPLICATION MESSAGE FROM SOMEONE!!!!")
+            print("GOT A REPLICATION MESSAGE FROM SOMEONE!!!!")
+            print("GOT A REPLICATION MESSAGE FROM SOMEONE!!!!")
+            self._registerNewMessage(data_list)
+            self.persistence_thread.incomings_pipe.put(data_list)
+
+    def create_outgoing_frame(self):
+        data_list = self.election_thread.outgoing_mssgs.get()
+        if data_list[0] == "HEARTBEAT":
+            self.messenger.multicast_hearbeat(data_list[0:7])  # multicast
+        if data_list[0] == "ELECTION":
+            self.messenger.election_mssg(data_list[0:7], data_list[7])  # unicast
+        if data_list[0] == "ACK":  # to do
+            self.messenger.ack_election_mssg(data_list[0:7], data_list[7])  # unicast
+        if data_list[0] == "VICTORY":
+            self.messenger.coordinator_mssg(data_list[0:7])  # multicast
+
+    def handle_incoming_udp_socket_channel_frames(self):
+        data_list = self.incoming_mssgs_udp_socket_thread.incomings_pipe.get()
+        if data_list[0] == "ACK" and \
+                data_list[1] == "SERVER" and \
+                data_list[2] != str(self.ProcessUUID) and \
+                data_list[3] != self.election_thread.ELECTION_BOARD["electionID"]:
+            if data_list[7] not in self.BOARD_OF_SERVERS["NodeIP"]:
+
+                self._addNode(data_list)
+                self._discovery_mssg_uuids_of_server[data_list[7]] = True
+            else:
+                self._updateServerBoard(data_list)
+        if data_list[0] == "ACK" and data_list[3] == self.election_thread.ELECTION_BOARD["electionID"]:
+            self.election_thread.incoming_mssgs.put(data_list)
+
+        if data_list[0] == "ELECTION":
+            self.election_thread.incoming_mssgs.put(data_list)
+
+        if data_list[0] == "UPDATE" and \
+                data_list[3] not in self.persistence_thread.clock_mssguuid_relation and \
+                not self._messageAlreadyRegistred(data_list[3]):
+            print("WE GOT AN UPDATE REQUEST FROM A GAS STATION!!!!")
+            print("WE GOT AN UPDATE REQUEST FROM A GAS STATION!!!!")
+            print("WE GOT AN UPDATE REQUEST FROM A GAS STATION!!!!")
+            print("WE GOT AN UPDATE REQUEST FROM A GAS STATION!!!!")
+            print(data_list)
+            if self.election_thread.iAmLead():
+                self._registerNewMessage(data_list)
+                print("ACKING TO AND PUTING INTO QUEUE!")
+                self.messenger.client_transmission_ack_message(data_list[3], data_list[7])
+                self.persistence_thread.incomings_pipe.put(data_list)
 
     def _dynamic_discovery(self, server_start):
         if len(self.BOARD_OF_SERVERS["ServerNodes"]) == 0 and server_start == True:

@@ -1,8 +1,6 @@
 import socket
-
-import config
-import config as cfg
 import pipe_filter as pipe
+import config as cfg
 
 group = cfg.config["MULTICAST_GROUP"]
 port_mc = cfg.config["MCAST_PORT"]
@@ -65,8 +63,9 @@ class MessageBuilder:
             "STATEMENT": "MESSAGE CONFIRMATION",
         }
 
-    def dynamic_discovery_message(self, message_uuid):
+    def dynamic_discovery_message(self, message_uuid, current_clock):
         self.dynamic_discovery_template["MSSG_UUID64"] = str(message_uuid)
+        self.dynamic_discovery_template["LOGICAL_CLOCK"] = current_clock
         self.sock.sendto(str.encode(
             pipe.outgoing_frame_creater(list(self.dynamic_discovery_template.values()))),
             (group, port_mc))
@@ -85,13 +84,13 @@ class MessageBuilder:
         self.dynamic_client_discovery_ack_template["MSSG_UUID64"] = ack_to_mssg
         self.udp_sock.sendto(str.encode(
             pipe.outgoing_frame_creater(list(self.dynamic_client_discovery_ack_template.values()), )),
-            (receiver, config.config["STATION_CLIENT_PORT"]))
+            (receiver, cfg.config["STATION_CLIENT_PORT"]))
 
     def client_transmission_ack_message(self, ack_to_mssg, receiver):
         self.client_transmission_ack_template["MSSG_UUID64"] = ack_to_mssg
         self.udp_sock.sendto(str.encode(
             pipe.outgoing_frame_creater(list(self.client_transmission_ack_template.values()), )),
-            (receiver, config.config["STATION_CLIENT_PORT"]))
+            (receiver, cfg.config["STATION_CLIENT_PORT"]))
 
     def election_mssg(self, frame_list, receiver):  # unicast
         self.udp_sock.sendto(str.encode(

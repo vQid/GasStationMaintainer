@@ -12,4 +12,5 @@ config = {
 
     "STATION_CLIENT_PORT": 16000,
     "QUERYING_CLIENT_PORT": 20000
+
 }

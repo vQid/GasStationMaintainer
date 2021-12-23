@@ -31,7 +31,7 @@ class BullyAlgorithm(threading.Thread):
         }
 
     def run(self):
-        time.sleep(3)  # for w8ing until server discovers other servers!
+        time.sleep(4)  # for w8ing until server discovers other servers!
         print("starting election thread...")
         try:
             while True:

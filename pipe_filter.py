@@ -1,5 +1,5 @@
 # MESSAGE FRAME BUILT
-# MESSAGE_TYPE | NODE_TYPE | PROCESS_UUID64 | MSSG_UUID64 | LOGICAL_CLOCK | PHYSICAL_CLOCK| STATEMENT | sender |
+# MESSAGE_TYPE | NODE_TYPE | PROCESS_UUID64 | MSSG_UUID64 | LOGICAL_CLOCK | PHYSICAL_CLOCK| STATEMENT | SENDER |
 #       0      |      1    |        2       |       3     |         4     |       5       |     6     |    7   |
 #_______________________________________________________________________________________________________________
 

@@ -116,16 +116,17 @@ class Server:
         if data_list[0] == "DISCOVERY" and \
                 data_list[1] == "CLIENT" and \
                 self.election_thread.iAmLead():
-            print("GOT A CLIENT DISCOVERY REQUEST!")
-            print(data_list)
+            print("<----- GOT A CLIENT DISCOVERY REQUEST! ---->")
+            print("<----- GOT A CLIENT DISCOVERY REQUEST! ---->")
             self._ackClientDiscovery(data_list[3], data_list[7])
 
         if data_list[0] == "DISCOVERY" and \
                 data_list[1] == "SERVER" and \
                 data_list[2] != str(self.ProcessUUID) and \
                 data_list[7] != self.MY_IP:
-
             if data_list[7] not in self.BOARD_OF_SERVERS["NodeIP"]:
+                print("<----- GOT A SERVER DISCOVERY REQUEST! ---->")
+                print("<----- GOT A SERVER DISCOVERY REQUEST! ---->")
                 self._addNode(data_list)
             else:
                 self._updateServerBoard(data_list)
@@ -134,20 +135,14 @@ class Server:
         if data_list[0] == "DISCOVERY" and \
                 data_list[1] == "SERVER" and \
                 data_list[2] != str(self.ProcessUUID):
-            print("SERVER DD ARRIVED!!!")
-            print("SERVER DD ARRIVED!!!")
-            print("SERVER DD ARRIVED!!!")
-            print("THE DATASET IS:")
-            print(data_list)
-            print("_______")
+            self.election_thread.updateLastActivity(data_list)
             self._ackDiscovery(data_list[3], data_list[7])
-
             dm_clock = int(data_list[4])
             print(dm_clock)
             print(self.persistence_thread.state_clock)
             if (int(self.persistence_thread.state_clock) - dm_clock) >= 1:
-                print("A LOWER CLOCK DETECTED!")
-                print("A LOWER CLOCK DETECTED!")
+                print("<---- A LOWER CLOCK DETECTED! ---->")
+                print("<---- A LOWER CLOCK DETECTED! ---->")
                 self.persistence_thread.init_recovery(data_list)
 
         if data_list[0] == "HEARTBEAT" and \
@@ -156,7 +151,6 @@ class Server:
                 data_list[1] == "SERVER" and \
                 data_list[7] in self.BOARD_OF_SERVERS["NodeIP"]:
             print("GOT A HEARTBEAT!")
-            print(data_list)
             self.election_thread.incoming_mssgs.put(data_list)
         if data_list[0] == "VICTORY" and \
                 data_list[2] != str(self.ProcessUUID) and \
@@ -208,12 +202,10 @@ class Server:
         if data_list[0] == "UPDATE" and \
                 data_list[3] not in self.persistence_thread.clock_mssguuid_relation and \
                 not self._messageAlreadyRegistred(data_list[3]):
-            print("WE GOT AN UPDATE REQUEST FROM A GAS STATION!!!!")
-            print("WE GOT AN UPDATE REQUEST FROM A GAS STATION!!!!")
-            print(data_list)
+            print("<---- WE GOT AN UPDATE REQUEST FROM A GAS STATION!!!! ---->")
+            print("<---- WE GOT AN UPDATE REQUEST FROM A GAS STATION!!!! ---->")
             if self.election_thread.iAmLead():
                 self._registerNewMessage(data_list)
-                print("ACKING TO AND PUTING INTO QUEUE!")
                 self.messenger.client_transmission_ack_message(data_list[3], data_list[7])
                 self.persistence_thread.incomings_pipe.put(data_list)
 
@@ -226,13 +218,13 @@ class Server:
 
     def _discoveryIntervall(self):
         # for @starttime
-        if (float(time.time()) - float(self.DynamicDiscovery_timestamp)) > 10 and len(
+        if (float(time.time()) - float(self.DynamicDiscovery_timestamp)) > 5 and len(
                 self.BOARD_OF_SERVERS["ServerNodes"]) == 0:
             message_uuid = self._create_DiscoveryUUID()
             self.DynamicDiscovery_timestamp = time.time()
             self.messenger.dynamic_discovery_message(message_uuid, str(self.persistence_thread.state_clock))
         # for @futher discoveries
-        if (float(time.time()) - float(self.DynamicDiscovery_timestamp)) > 30 and len(
+        if (float(time.time()) - float(self.DynamicDiscovery_timestamp)) > 10 and len(
                 self.BOARD_OF_SERVERS["ServerNodes"]) > 0:
             message_uuid = self._create_DiscoveryUUID()
             self.DynamicDiscovery_timestamp = time.time()

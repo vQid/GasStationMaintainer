@@ -17,14 +17,16 @@ class Cons(threading.Thread):
 
         while True:
             time.sleep(4.0)
+            print("------------------")
             print("I AM PRIMARY: ")
             print(self.primary)
+            print("------------------")
             print("The Primary PID is: " + self.primaryppid)
+            print("------------------")
             print(self.board)
             if len(self.dataset) > 0:
                 print("MY CLOCK IS:")
                 print(self.clock)
                 print(self.dataset)
-
             if self.election_pending:
                 print("election is pending")

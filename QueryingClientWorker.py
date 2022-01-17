@@ -78,7 +78,7 @@ class QCWorker(threading.Thread):
 
     def _completeQueryProcess(self, processID):
         path = "./queries/" + processID + ".csv"
-        header = ["VOTES", "CLOCK", "GAS_STATION", "GAS_STATION", "DESCRIPTION", "QUANTITY", "EVENT_TIMESTAMP"]
+        header = ["VOTES", "CLOCK", "GAS_STATION", "GTIN", "DESCRIPTION", "QUANTITY", "EVENT_TIMESTAMP"]
         data = []
         if len(self.query_pool[processID][1]) > 0:
             for index in self.query_pool[processID][1]:
